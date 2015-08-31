@@ -1,4 +1,4 @@
-__all__ = ["instill", "timelog"]
+__all__ = ["instil", "timelog"]
 
 import argparse
 from datetime import datetime, timedelta
