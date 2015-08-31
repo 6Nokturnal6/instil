@@ -42,31 +42,38 @@ class timelog (object):
                         srch = self._projects
                         while len(path) > 0:
                                 if not path[0] in srch:
-                                        srch[path[0]] = {'children': {}, 'time': timedelta()}
+                                        srch[path[0]] = {'children': {}, 'time': []}
                                 print("%f hours logged for %s" % (dura.total_seconds() / 3600, path[0]))
-                                srch[path[0]]['time'] += dura
+                                srch[path[0]]['time'].append((self._active[1], dura))
                                 srch = srch[path[0]]['children']
                                 path = path[1:]
                         self._active = None
         
-        def get_time(self, path=[]):
+        def get_time(self, path=[], since=datetime.fromtimestamp(0)):
         
                 if len(path) == 0:
-                        return sum([y['time'] for x, y in self._projects.items()], timedelta())
+                        return sum([sum([z[1] for z in y['time'] if z[0] >= since], timedelta()) for x, y in self._projects.items()], timedelta())
                         
-                accu = timedelta()
-                while len(path) > 0:
-                        if path[0] in srch:
-                                accu += srch[path[0]]['time']
-                                srch = srch[path[0]]['children']
-                                path = path[1:]
-                        else:
-                                raise Exception("Requested path doesn't exist: %s", ".".join(path))
+                srch = self._projects
+                try:
+                        while len(path) > 1:
+                                if path[0] in srch:
+                                        srch = srch[path[0]]['children']
+                                        path = path[1:]
+                        return sum([x[1] for x in srch[path[0]]['time'] if x[0] >= since], timedelta())
+                except KeyError:
+                        raise Exception("Path not found: %s" % path)
+
+        def print_tree(self, since=datetime.fromtimestamp(0)):
+                timelog._print_tree(self._projects, since=since)
+                        
         @staticmethod
-        def print_tree(root, depth=0):
+        def _print_tree(root, depth=0, since=datetime.fromtimestamp(0)):
                 for proj, t in root.items():
-                        print("%s%s: %f" % ("  "*depth, proj, t['time'].total_seconds() / (60 * 60)))
-                        timelog.print_tree(t['children'], depth+1)
+                        s = sum([x[1] for x in t['time'] if x[0] >= since], timedelta()).total_seconds()
+                        if s > 0:
+                                print("%s%s: %f" % ("  "*depth, proj, s/ (60 * 60)))
+                                timelog._print_tree(t['children'], depth=depth+1, since=since)
 
 class instil (object):
 
@@ -82,13 +89,18 @@ class instil (object):
                 path4 = ["foo", "bing"]
                 path5 = ["fizz", "buzz"]
                 
-                my_log.begin_task(path1, at=datetime.now() - timedelta(hours=1, minutes=15))
-                my_log.begin_task(path2, at=datetime.now() - timedelta(hours=1, minutes=10))
-                my_log.begin_task(path3, at=datetime.now() - timedelta(hours=0, minutes=55))
-                my_log.begin_task(path4, at=datetime.now() - timedelta(hours=0, minutes=45))
-                my_log.begin_task(path5, at=datetime.now() - timedelta(hours=0, minutes=15))
-                my_log.end_task()
-                print("total time: %f" % (my_log.get_time().total_seconds() / 3600))
+                n = datetime.now()
                 
-                timelog.print_tree(my_log._projects)
+                my_log.begin_task(path1, at=n - timedelta(hours=1, minutes=15))
+                my_log.begin_task(path2, at=n - timedelta(hours=1, minutes=10))
+                my_log.begin_task(path3, at=n - timedelta(hours=0, minutes=55))
+                my_log.begin_task(path4, at=n - timedelta(hours=0, minutes=45))
+                my_log.begin_task(path5, at=n - timedelta(hours=0, minutes=15))
+                my_log.end_task()
+                
+                since = n - timedelta(minutes=45)
+                
+                print("total time: %f" % (my_log.get_time(since=since).total_seconds() / 3600))
+                
+                my_log.print_tree(since=since)
                         
