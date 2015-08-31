@@ -1,6 +1,6 @@
 __all__ = ["instil", "timelog"]
 
-import argparse
+import argparse, pickle
 from datetime import datetime, timedelta
 
 class timelog (object):
@@ -66,6 +66,13 @@ class timelog (object):
 
         def print_tree(self, since=datetime.fromtimestamp(0)):
                 timelog._print_tree(self._projects, since=since)
+        
+        def save(self, to_file):
+                pickle.dump(self, open(to_file, 'w'))
+        
+        @staticmethod
+        def load(from_file):
+                return pickle.load(open(from_file))
                         
         @staticmethod
         def _print_tree(root, depth=0, since=datetime.fromtimestamp(0)):
@@ -97,6 +104,10 @@ class instil (object):
                 my_log.begin_task(path4, at=n - timedelta(hours=0, minutes=45))
                 my_log.begin_task(path5, at=n - timedelta(hours=0, minutes=15))
                 my_log.end_task()
+                
+                my_log.save("instil_tmp.pickle")
+                
+                my_log = timelog.load("instil_tmp.pickle")
                 
                 since = n - timedelta(minutes=45)
                 
