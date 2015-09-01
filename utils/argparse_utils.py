@@ -1,5 +1,7 @@
 import parsedatetime
+import datetime
 import argparse
+import time
 import sys
 
 __all__ = ['ArgumentParser', 'ArgumentParserException', 'ArgumentParserExceptionAction', 'ArgumentParserParseDateTimeAction']
@@ -16,10 +18,11 @@ class ArgumentParserParseDateTimeAction(argparse.Action):
                 super(ArgumentParserParseDateTimeAction, self).__init__(**kwargs)
                 self._pdt = parsedatetime.Calendar(parsedatetime.Constants("en"))
         def __call__(self, parser, namespace, values, option_string=None):
-                setattr(namespace, self.dest, self._pdt.parse(values))
+                setattr(namespace, self.dest, datetime.datetime.fromtimestamp(time.mktime(self._pdt.parse(values)[0])))
 
 class ArgumentParser(argparse.ArgumentParser):
 
+        # from http://stackoverflow.com/questions/6365601
         def set_default_subparser(self, name, args=None):
             """default subparser selection. Call after setup, just before parse_args()
             name: is the name of the subparser to call by default

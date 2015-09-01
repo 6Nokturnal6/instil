@@ -1,10 +1,13 @@
 __all__ = ["instil", "timelog"]
 
-import pickle, os, sys
+import pickle, os, sys, calendar, time
 from datetime import datetime, timedelta
 from utils.argparse_utils import *
+from utils.input_utils import *
 
 class timelog (object):
+
+        format_str = "%I:%M %p, %a %b %d"
         
         def __init__(self):
                 self._active = None
@@ -35,10 +38,13 @@ class timelog (object):
                 if len(path) == 0:
                         return False
                 self._active = (path, at)
+                print("Task %s started at %s." % (".".join(path), at.strftime(timelog.format_str)))
         
         def cancel_task(self):
                 if self._active != None:
-                        print("Canceled task active since %s: '%s'" % (self._active))
+                        print("Canceled task %s, active since %s." % (".".join(self._active[0]), self._active[1].strftime(timelog.format_str)))
+                else:
+                        print("No active task to cancel.")
                 self._active = None
         
         def end_task(self, at=datetime.now()):
@@ -46,19 +52,19 @@ class timelog (object):
                         path = self._active[0]
                         dura = at - self._active[1]
                         srch = self._projects
+                        print("Task %s ended at %s (%f hours)." % (".".join(self._active[0]), at.strftime(timelog.format_str), dura.total_seconds() / 3600))
                         while len(path) > 0:
                                 if not path[0] in srch:
                                         srch[path[0]] = {'children': {}, 'time': []}
-                                print("%f hours logged for %s" % (dura.total_seconds() / 3600, path[0]))
                                 srch[path[0]]['time'].append((self._active[1], dura))
                                 srch = srch[path[0]]['children']
                                 path = path[1:]
                         self._active = None
         
-        def get_time(self, path=[], since=datetime.fromtimestamp(0)):
+        def get_time(self, path=[], since=datetime.fromtimestamp(0), until=datetime.now()):
         
                 if len(path) == 0:
-                        return sum([sum([z[1] for z in y['time'] if z[0] >= since], timedelta()) for x, y in self._projects.items()], timedelta())
+                        return sum([sum([z[1] for z in y['time'] if z[0] >= since and z[0] <= until], timedelta()) for x, y in self._projects.items()], timedelta())
                         
                 srch = self._projects
                 try:
@@ -66,12 +72,23 @@ class timelog (object):
                                 if path[0] in srch:
                                         srch = srch[path[0]]['children']
                                         path = path[1:]
-                        return sum([x[1] for x in srch[path[0]]['time'] if x[0] >= since], timedelta())
+                        return sum([x[1] for x in srch[path[0]]['time'] if x[0] >= since and x[0] <= until], timedelta())
                 except KeyError:
                         raise Exception("Path not found: %s" % path)
+                
+        def print_details(self, since=datetime.fromtimestamp(0), until=datetime.now()):
+                # TODO
+                print("detailed view not yet implemented")
 
-        def print_tree(self, since=datetime.fromtimestamp(0)):
-                timelog._print_tree(self._projects, since=since)
+        def print_tree(self, since=datetime.fromtimestamp(0), until=datetime.now()):
+                timelog._print_tree(self._projects, since=since, until=until)
+        
+        def print_var(self, verbose=False, since=datetime.fromtimestamp(0), until=datetime.now()):
+                if verbose:
+                        self.print_details(since, until)
+                else:
+                        self.print_tree(since, until)
+                        print("Total: %f hours" % (self.get_time(since=since, until=until).total_seconds() / 3600))
         
         def save(self, to_file):
                 pickle.dump(self, open(to_file, 'w'))
@@ -81,12 +98,12 @@ class timelog (object):
                 return pickle.load(open(from_file))
                         
         @staticmethod
-        def _print_tree(root, depth=0, since=datetime.fromtimestamp(0)):
+        def _print_tree(root, depth=0, since=datetime.fromtimestamp(0), until=datetime.now()):
                 for proj, t in root.items():
-                        s = sum([x[1] for x in t['time'] if x[0] >= since], timedelta()).total_seconds()
+                        s = sum([x[1] for x in t['time'] if x[0] >= since and x[0] <= until], timedelta()).total_seconds()
                         if s > 0:
                                 print("%s%s: %f" % ("  "*depth, proj, s/ (60 * 60)))
-                                timelog._print_tree(t['children'], depth=depth+1, since=since)
+                                timelog._print_tree(t['children'], depth=depth+1, since=since, until=until)
 
 class instil (object):
 
@@ -94,29 +111,134 @@ class instil (object):
 
         def __init__(self):
                 self.timelog = None
+                self.statefile = os.path.expanduser(instil.default_state)
         
         def load(self, no_new=False):
                 try:
-                        self.timelog = timelog.load(os.path.expanduser(instil.default_state))
+                        self.timelog = timelog.load(self.statefile)
                 except IOError as e:
                         if no_new:
                                 raise e
                         else:
                                 self.timelog = timelog()
                                 print("A new time log has been created.")
+                        
+        def save(self):
+                if not os.path.exists(os.path.dirname(self.statefile)):
+                        os.makedirs(os.path.dirname(self.statefile))
+                self.timelog.save(self.statefile)
         
         def show(self, args):
-        
-                if all([getattr(args, x) == False for x in ['lastmonth', 'lastweek', 'month', 'week', 'yesterday', 'today', 'status']]):
+                if all([getattr(args, x) == False for x in ['lastmonth', 'lastweek', 'month', 'week', 'yesterday', 'today', 'alltime', 'status']]):
                         args.status = True
                 
+                try:
+                        self.load(True)
+                except IOError:
+                        print("You don't seem to have any time logged yet.")
+                        print("Try '%s -h' to find out how to start using InSTiL." % sys.argv[0])
+                        return
                 
-        
+                if args.status:
+                        cur = self.timelog.current_task()
+                        if cur == None:
+                                print("No task is active.")
+                        else:
+                                print("Active task is %s, since %s." % (".".join(cur[0]), cur[1].strftime(timelog.format_str)))
+                        print("")
+                
+                if args.alltime:
+                        print("%s for all time:" % ("Details" if args.detail else "Summary"))
+                        self.timelog.print_var(args.detail)
+                        print("")
+                
+                if args.lastmonth:
+                        lmm, lmy = time.localtime().tm_mon, time.localtime().tm_year
+                        lmm -= 1
+                        if lmm < 1:
+                                lmy -= 1
+                                lmm += 12
+                        mo = timedelta(days=calendar.monthrange(lmy, lmm)[1])
+                        begin = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0) - mo
+                        end = begin + mo
+                        print("%s for %s %d:" % ("Details" if args.detail else "Summary", calendar.month_name[lmm], lmy))
+                        self.timelog.print_var(args.detail, since=begin, until=end)
+                        print("")
+                
+                if args.month:
+                        lmm, lmy = time.localtime().tm_mon, time.localtime().tm_year
+                        begin = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                        end = begin + mo
+                        print("%s for %s %d:" % ("Details" if args.detail else "Summary", calendar.month_name[lmm], lmy))
+                        self.timelog.print_var(args.detail, since=begin, until=end)
+                        print("")
+                
+                if args.lastweek:
+                        dow = datetime.now().weekday()
+                        begin = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=dow+7)
+                        lmy, lmm, lmd = begin.year, begin.month, begin.day
+                        end = begin + timedelta(days=7)
+                        print("%s for week of %s %d, %d:" % ("Details" if args.detail else "Summary", calendar.month_name[lmm], lmd, lmy))
+                        self.timelog.print_var(args.detail, since=begin, until=end)
+                        print("")
+                
+                if args.week:
+                        dow = datetime.now().weekday()
+                        begin = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=dow)
+                        lmy, lmm, lmd = begin.year, begin.month, begin.day
+                        end = begin + timedelta(days=7)
+                        print("%s for week of %s %d, %d:" % ("Details" if args.detail else "Summary", calendar.month_name[lmm], lmd, lmy))
+                        self.timelog.print_var(args.detail, since=begin, until=end)
+                        print("")
+                
+                if args.yesterday:
+                        begin = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days = 1)
+                        lmy, lmm, lmd = begin.year, begin.month, begin.day
+                        end = begin + timedelta(days=1)
+                        print("%s for %s %d, %d:" % ("Details" if args.detail else "Summary", calendar.month_name[lmm], lmd, lmy))
+                        self.timelog.print_var(args.detail, since=begin, until=end)
+                        print("")
+                
+                if args.today:
+                        begin = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                        lmy, lmm, lmd = begin.year, begin.month, begin.day
+                        end = begin + timedelta(days=1)
+                        print("%s for %s %d, %d:" % ("Details" if args.detail else "Summary", calendar.month_name[lmm], lmd, lmy))
+                        self.timelog.print_var(args.detail, since=begin, until=end)
+                        print("")
+                
+
         def start(self, args):
-                pass
+                try:
+                        self.load(not args.yes)
+                except IOError:
+                        print("No existing InSTiL log was found.")
+                        if query_yes_no("Would you like to create a new file?"):
+                                self.timelog = timelog()
+                                print("")
+                        else:
+                                print("Cannot continue without creating a data file.")
+                                return
+                self.timelog.begin_task(args.path, at=args.at)
+                self.save()
         
         def stop(self, args):
-                pass
+                try:
+                        self.load(True)
+                except IOError:
+                        print("No existing InSTiL log was found.")
+                        print("Cannot continue without existence of a data file.")
+                self.timelog.end_task(at=args.at)
+                self.save()
+        
+        def cancel(self, args):
+                try:
+                        self.load(True)
+                except IOError:
+                        print("No existing InSTiL log was found.")
+                        print("Cannot continue without existence of a data file.")
+                self.timelog.cancel_task()
+                self.save()
         
         def main(self):
                 parser = ArgumentParser(add_help=False)
@@ -156,6 +278,8 @@ class instil (object):
                         metavar="time"
                 )
                 
+                cancel = subparsers.add_parser('cancel')
+                
                 show = subparsers.add_parser('show')
                 show.add_argument(
                         "-w, --week",
@@ -191,13 +315,19 @@ class instil (object):
                         "-t, --today",
                         dest="today",
                         action='store_true',
-                        help="show detailed information for today"
+                        help="show information for today"
                 )
                 show.add_argument(
                         "-y, --yesterday",
                         dest="yesterday",
                         action='store_true',
-                        help="show detailed information for yesterday"
+                        help="show information for yesterday"
+                )
+                show.add_argument(
+                        "-a, --alltime",
+                        dest="alltime",
+                        action='store_true',
+                        help="show information for all time"
                 )
                 show.add_argument(
                         "-s, --status",
@@ -216,6 +346,7 @@ class instil (object):
                         print("The available commands are: ")
                         print("  start   Begin a new task")
                         print("  stop    Stop the current task")
+                        print("  cancel  Cancel the current task")
                         print("  show    Display information (default)")
                         print("")
                         print("Use '%s <command> -h' for help on a specific command." % sys.argv[0])
@@ -227,5 +358,7 @@ class instil (object):
                         self.start(args)
                 elif args.command == "stop":
                         self.stop(args)
+                elif args.command == "cancel":
+                        self.cancel(args)
                 else:
                         raise Exception("Unknown command: %s" % args.command)
