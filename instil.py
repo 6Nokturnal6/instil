@@ -1,7 +1,8 @@
 __all__ = ["instil", "timelog"]
 
-import argparse, pickle
+import pickle, os, sys
 from datetime import datetime, timedelta
+from utils.argparse_utils import *
 
 class timelog (object):
         
@@ -34,6 +35,11 @@ class timelog (object):
                 if len(path) == 0:
                         return False
                 self._active = (path, at)
+        
+        def cancel_task(self):
+                if self._active != None:
+                        print("Canceled task active since %s: '%s'" % (self._active))
+                self._active = None
         
         def end_task(self, at=datetime.now()):
                 if self._active != None:
@@ -84,34 +90,142 @@ class timelog (object):
 
 class instil (object):
 
+        default_state = "~/.instil/timelog.pickle"
+
         def __init__(self):
+                self.timelog = None
+        
+        def load(self, no_new=False):
+                try:
+                        self.timelog = timelog.load(os.path.expanduser(instil.default_state))
+                except IOError as e:
+                        if no_new:
+                                raise e
+                        else:
+                                self.timelog = timelog()
+                                print("A new time log has been created.")
+        
+        def show(self, args):
+        
+                if all([getattr(args, x) == False for x in ['lastmonth', 'lastweek', 'month', 'week', 'yesterday', 'today', 'status']]):
+                        args.status = True
+                
+                
+        
+        def start(self, args):
+                pass
+        
+        def stop(self, args):
                 pass
         
         def main(self):
-                my_log = timelog()
+                parser = ArgumentParser(add_help=False)
+                parser.add_argument("-h, --help", action=ArgumentParserExceptionAction)
+                subparsers = parser.add_subparsers(dest="command")
                 
-                path1 = ["foo", "bar", "baz"]
-                path2 = ["foo"]
-                path3 = ["foo", "bar"]
-                path4 = ["foo", "bing"]
-                path5 = ["fizz", "buzz"]
+                start = subparsers.add_parser('start')
+                start.add_argument(
+                        "-a, --at",
+                        dest="at",
+                        default=datetime.now(),
+                        action=ArgumentParserParseDateTimeAction,
+                        help="specify the time that the task started",
+                        metavar="time"
+                )
+                start.add_argument(
+                        "path",
+                        nargs="+",
+                        type=str,
+                        help="a word or sequence which identifies the category and/or task",
+                        metavar="task_id"
+                )
+                start.add_argument(
+                        "-y, --yes",
+                        dest="yes",
+                        action='store_true',
+                        help="automatically agree to any prompts"
+                )
                 
-                n = datetime.now()
+                stop = subparsers.add_parser('stop')
+                stop.add_argument(
+                        "-a, --at",
+                        dest="at",
+                        default=datetime.now(),
+                        action=ArgumentParserParseDateTimeAction,
+                        help="specify the time that the task stopped",
+                        metavar="time"
+                )
                 
-                my_log.begin_task(path1, at=n - timedelta(hours=1, minutes=15))
-                my_log.begin_task(path2, at=n - timedelta(hours=1, minutes=10))
-                my_log.begin_task(path3, at=n - timedelta(hours=0, minutes=55))
-                my_log.begin_task(path4, at=n - timedelta(hours=0, minutes=45))
-                my_log.begin_task(path5, at=n - timedelta(hours=0, minutes=15))
-                my_log.end_task()
-                
-                my_log.save("instil_tmp.pickle")
-                
-                my_log = timelog.load("instil_tmp.pickle")
-                
-                since = n - timedelta(minutes=45)
-                
-                print("total time: %f" % (my_log.get_time(since=since).total_seconds() / 3600))
-                
-                my_log.print_tree(since=since)
+                show = subparsers.add_parser('show')
+                show.add_argument(
+                        "-w, --week",
+                        dest="week",
+                        action='store_true',
+                        help="select the current week for display"
+                )
+                show.add_argument(
+                        "-l, --lastweek",
+                        dest="lastweek",
+                        action='store_true',
+                        help="select the previous week for display"
+                )
+                show.add_argument(
+                        "-m, --month",
+                        dest="month",
+                        action='store_true',
+                        help="select the current month for display"
+                )
+                show.add_argument(
+                        "-L, --lastmonth",
+                        dest="lastmonth",
+                        action='store_true',
+                        help="select the previous month for display"
+                )
+                show.add_argument(
+                        "-d, --detail",
+                        dest="detail",
+                        action='store_true',
+                        help="show a detailed timetable instead of a summary"
+                )
+                show.add_argument(
+                        "-t, --today",
+                        dest="today",
+                        action='store_true',
+                        help="show detailed information for today"
+                )
+                show.add_argument(
+                        "-y, --yesterday",
+                        dest="yesterday",
+                        action='store_true',
+                        help="show detailed information for yesterday"
+                )
+                show.add_argument(
+                        "-s, --status",
+                        dest="status",
+                        action='store_true',
+                        help="display only the status of the current task (default)"
+                )
                         
+                parser.set_default_subparser('show')
+
+                try:
+                        args = parser.parse_args()
+                except ArgumentParserException:
+                        print("usage: %s <command> [<args>]" % (sys.argv[0]))
+                        print("")
+                        print("The available commands are: ")
+                        print("  start   Begin a new task")
+                        print("  stop    Stop the current task")
+                        print("  show    Display information (default)")
+                        print("")
+                        print("Use '%s <command> -h' for help on a specific command." % sys.argv[0])
+                        return
+                        
+                if args.command == "show":
+                        self.show(args)
+                elif args.command == "start":
+                        self.start(args)
+                elif args.command == "stop":
+                        self.stop(args)
+                else:
+                        raise Exception("Unknown command: %s" % args.command)
