@@ -17,9 +17,9 @@ class Table:
                 p = len(self.colDelim) * (len(contents[0]) - 1)
 
                 # Line gets too long for one concatenation
-                self.rowDelim = self.colDelim
+                self.rowDelim = "-"
                 self.rowDelim += rowDelim * (self.wrap * max([len(i) for i in contents]) + p)
-                self.rowDelim += self.colDelim + "\n"
+                self.rowDelim += "-" + "\n"
 
     def __str__(self):
         if len(self.contents) == 0:
@@ -37,4 +37,4 @@ class Table:
                     string += self.colDelim
                 string += "\n"
             string += self.rowDelim
-        return string.replace("\x00"," ")
+        return string.replace("\x07", "\x00\x00\x00").replace("\x00"," ")

@@ -108,10 +108,14 @@ class timelog (object):
                                         continue
                                 t = datetime.fromtimestamp(week) + timedelta(days = (day_i - 1))
                                 table[-1].append([t.strftime("%b %-d")])
+                                total = timedelta()
                                 for task, start, dur in sorted(day, key=lambda x: x[1]):
                                         table[-1][-1].append(" ")
-                                        table[-1][-1].append("%s" % "/".join(task))
                                         table[-1][-1].append("%s - %s" % (start.strftime(timelog.time_fmt_s), (start + dur).strftime(timelog.time_fmt_s)))
+                                        table[-1][-1].append("%s" % "/".join(task))
+                                        total += dur
+                                table[-1][-1].append(" ")
+                                table[-1][-1].append("\x08Total: %.2f hours\x07" % (total.total_seconds() / 3600))
                                 table[-1][-1] = "\t\t\t\t\x00".join(table[-1][-1])
                 print(Table(table, 21))
 
