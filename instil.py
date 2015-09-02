@@ -4,10 +4,12 @@ import pickle, os, sys, calendar, time
 from datetime import datetime, timedelta
 from utils.argparse_utils import *
 from utils.input_utils import *
+from utils.table_utils import *
 
 class timelog (object):
 
         format_str = "%I:%M %p, %a %b %d"
+        time_fmt_s = "%I:%M %p"
         
         def __init__(self):
                 self._active = None
@@ -75,10 +77,43 @@ class timelog (object):
                         return sum([x[1] for x in srch[path[0]]['time'] if x[0] >= since and x[0] <= until], timedelta())
                 except KeyError:
                         raise Exception("Path not found: %s" % path)
+        
+        def _crawl(self, node, specs, since, until, history=[]):
+                for x, y in node.items():
+                        for z in y['time']:
+                                tmp = history[:]
+                                tmp.append(x)
+                                if z[0] >= since and z[0] <= until:
+                                        specs[z] = tmp
+                                self._crawl(y['children'], specs, since, until, history=tmp)
                 
         def print_details(self, since=datetime.fromtimestamp(0), until=datetime.now()):
-                # TODO
-                print("detailed view not yet implemented")
+                week_template = [[] for x in range(0, 7)]
+                weeks = {}
+                specs = {}
+                table = []
+                self._crawl(self._projects, specs, since, until)
+                for (start, dur), key in specs.items():
+                        start_day_dt = start.replace(hour=0, minute=0, second=0, microsecond=0)
+                        start_day  = int(start_day_dt.strftime("%w"))
+                        start_week = int((start_day_dt - timedelta(days=start_day_dt.weekday())).strftime("%s"))
+                        if not start_week in weeks:
+                                weeks[start_week] = week_template[:]
+                        weeks[start_week][start_day].append((key, start, dur))
+                for week in weeks:
+                        table.append([])
+                        for day_i in range(0, 7):
+                                day = weeks[week][day_i]
+                                if len(day) == 0 and (until - since) < timedelta(days=7):
+                                        continue
+                                t = datetime.fromtimestamp(week) + timedelta(days = (day_i - 1))
+                                table[-1].append([t.strftime("%b %-d")])
+                                for task, start, dur in sorted(day, key=lambda x: x[1]):
+                                        table[-1][-1].append(" ")
+                                        table[-1][-1].append("%s" % "/".join(task))
+                                        table[-1][-1].append("%s - %s" % (start.strftime(timelog.time_fmt_s), (start + dur).strftime(timelog.time_fmt_s)))
+                                table[-1][-1] = "\t\t\t\t\x00".join(table[-1][-1])
+                print(Table(table, 21))
 
         def print_tree(self, since=datetime.fromtimestamp(0), until=datetime.now()):
                 timelog._print_tree(self._projects, since=since, until=until)
@@ -168,6 +203,7 @@ class instil (object):
                 if args.month:
                         lmm, lmy = time.localtime().tm_mon, time.localtime().tm_year
                         begin = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                        mo = timedelta(days=calendar.monthrange(lmy, lmm)[1])
                         end = begin + mo
                         print("%s for %s %d:" % ("Details" if args.detail else "Summary", calendar.month_name[lmm], lmy))
                         self.timelog.print_var(args.detail, since=begin, until=end)
@@ -219,8 +255,11 @@ class instil (object):
                         else:
                                 print("Cannot continue without creating a data file.")
                                 return
-                self.timelog.begin_task(args.path, at=args.at)
-                self.save()
+                if self.timelog.task_exists(args.path) or args.yes or query_yes_no("This task does not exist. Would you like to create it?"):
+                        self.timelog.begin_task(args.path, at=args.at)
+                        self.save()
+                else:
+                        print("No action taken.")
         
         def stop(self, args):
                 try:

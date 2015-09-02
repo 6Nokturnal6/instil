@@ -1,1 +1,1 @@
-__all__ = ['argparse_utils', 'input_utils']
+__all__ = ['argparse_utils', 'input_utils', 'table_utils']
