@@ -6,6 +6,12 @@ InSTiL:
 
 InSTiL is a simple command-line utility which you can use to log time. It makes it easy to track how much time you spend on each of your several projects.
 
+###Installation:
+- Requires Python 2.7+
+- Requires the "parsedatetime" package.
+- Simply put the entire "instil" folder somewhere in your PYTHONPATH.
+- You may also want to alias the command "instil" to "python instil".
+
 ###Task paths:
 
 Tasks in InSTiL are categorized hierarchically. For example, you might have a broad category of tasks called "homework" and subcategories for "calculus," "physics," "chemistry," etc. These subcategories may even have their own subcategories.
@@ -39,6 +45,8 @@ If you have accidentally started a task that you do not want to log, use this co
     instil cancel
 
 Note that you do not need to specify the task you are stopping or canceling. It is assumed that only one task can be active at a time, so there is no ambiguity.
+
+If you start a new task, it will automatically stop the previous task if one was active.
     
 If you have already started or stopped a task but forgot to notify InSTiL, you can specify a time or offset when you invoke InSTiL:
 
