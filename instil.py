@@ -215,7 +215,7 @@ class instil (object):
                         print("")
                 
                 if args.lastweek:
-                        dow = datetime.now().weekday()
+                        dow = int(datetime.now().strftime("%w"))
                         begin = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=dow+7)
                         lmy, lmm, lmd = begin.year, begin.month, begin.day
                         end = begin + timedelta(days=7)
@@ -224,7 +224,7 @@ class instil (object):
                         print("")
                 
                 if args.week:
-                        dow = datetime.now().weekday()
+                        dow = int(datetime.now().strftime("%w"))
                         begin = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=dow)
                         lmy, lmm, lmd = begin.year, begin.month, begin.day
                         end = begin + timedelta(days=7)
