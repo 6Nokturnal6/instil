@@ -88,25 +88,26 @@ class timelog (object):
                                 self._crawl(y['children'], specs, since, until, history=tmp)
                 
         def print_details(self, since=datetime.fromtimestamp(0), until=datetime.now()):
-                week_template = [[] for x in range(0, 7)]
                 weeks = {}
                 specs = {}
                 table = []
                 self._crawl(self._projects, specs, since, until)
+                
                 for (start, dur), key in specs.items():
                         start_day_dt = start.replace(hour=0, minute=0, second=0, microsecond=0)
                         start_day  = int(start_day_dt.strftime("%w"))
-                        start_week = int((start_day_dt - timedelta(days=start_day_dt.weekday())).strftime("%s"))
+                        start_week = int((start_day_dt - timedelta(days=start_day)).strftime("%s"))
                         if not start_week in weeks:
-                                weeks[start_week] = week_template[:]
+                                weeks[start_week] = [[] for x in range(0, 7)]
                         weeks[start_week][start_day].append((key, start, dur))
+
                 for week in weeks:
                         table.append([])
                         for day_i in range(0, 7):
                                 day = weeks[week][day_i]
                                 if len(day) == 0 and (until - since) < timedelta(days=7):
                                         continue
-                                t = datetime.fromtimestamp(week) + timedelta(days = (day_i - 1))
+                                t = datetime.fromtimestamp(week) + timedelta(days = (day_i))
                                 table[-1].append([t.strftime("%b %-d")])
                                 total = timedelta()
                                 for task, start, dur in sorted(day, key=lambda x: x[1]):
