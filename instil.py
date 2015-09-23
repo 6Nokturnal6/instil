@@ -101,10 +101,10 @@ class timelog (object):
                                 weeks[start_week] = [[] for x in range(0, 7)]
                         weeks[start_week][start_day].append((key, start, dur))
 
-                for week in weeks:
+                for week, x in sorted(weeks.items(), key=lambda(a, b): a):
                         table.append([])
                         for day_i in range(0, 7):
-                                day = weeks[week][day_i]
+                                day = x[day_i]
                                 if len(day) == 0 and (until - since) < timedelta(days=7):
                                         continue
                                 t = datetime.fromtimestamp(week) + timedelta(days = (day_i))
